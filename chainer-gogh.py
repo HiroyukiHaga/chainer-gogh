@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 import argparse
 import os
 import sys
@@ -116,9 +116,9 @@ class Clip(chainer.Function):
             ''','clip')(x)
         return ret
 
-def generate_image(img_orig, img_style, width, nw, nh, max_iter, lr, alpha, beta, img_gen=None):
-    mid_orig = nin_forward(Variable(img_orig))
-    style_mats = [get_matrix(y) for y in nin_forward(Variable(img_style))]
+def generate_image(img_orig, img_style, width, nw, nh, max_iter, lr, alpha, beta, img_gen=None, forward=None):
+    mid_orig = forward(Variable(img_orig))
+    style_mats = [get_matrix(y) for y in forward(Variable(img_style))]
 
     if img_gen is None:
         if args.gpu >= 0:
@@ -132,7 +132,7 @@ def generate_image(img_orig, img_style, width, nw, nh, max_iter, lr, alpha, beta
     for i in range(max_iter):
 
         x = Variable(img_gen)
-        y = nin_forward(x)
+        y = forward(x)
 
         optimizer.zero_grads()
         L = Variable(xp.zeros((), dtype=np.float32))
@@ -166,52 +166,60 @@ def generate_image(img_orig, img_style, width, nw, nh, max_iter, lr, alpha, beta
 
 
 
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='A Neural Algorithm of Artistic Style')
+    parser.add_argument('--model', '-m', default='nin_imagenet.caffemodel',
+                        help='model file')
+    parser.add_argument('--orig_img', '-i', default='orig.png',
+                        help='Original image')
+    parser.add_argument('--style_img', '-s', default='style.png',
+                        help='Style image')
+    parser.add_argument('--out_dir', '-o', default='output',
+                        help='Output directory')
+    parser.add_argument('--gpu', '-g', default=-1, type=int,
+                        help='GPU ID (negative value indicates CPU)')
+    parser.add_argument('--iter', default=5000, type=int,
+                        help='number of iteration')
+    parser.add_argument('--lr', default=4.0, type=float,
+                        help='learning rate')
+    parser.add_argument('--lam', default=0.005, type=float,
+                        help='original image weight / style weight ratio')
+    parser.add_argument('--width', '-w', default=435, type=int,
+                        help='image width, height')
+    args = parser.parse_args()
+
+    try:
+        os.mkdir(args.out_dir)
+    except:
+        pass
+
+    if args.gpu >= 0:
+    	cuda.check_cuda_available()
+    	cuda.get_device(args.gpu).use()
+       	xp = cuda.cupy
+    else:
+       	xp = np
+
+    if 'VGG' in args.model:
+        print 'vgg_forward will be used for ' args.model
+        forward = vgg_forward
+        W = 256
+    else: 
+        W = args.width
+        forward = nin_forward
 
 
-parser = argparse.ArgumentParser(
-    description='A Neural Algorithm of Artistic Style')
-parser.add_argument('--model', '-m', default='nin_imagenet.caffemodel',
-                    help='model file')
-parser.add_argument('--orig_img', '-i', default='orig.png',
-                    help='Original image')
-parser.add_argument('--style_img', '-s', default='style.png',
-                    help='Style image')
-parser.add_argument('--out_dir', '-o', default='output',
-                    help='Output directory')
-parser.add_argument('--gpu', '-g', default=-1, type=int,
-                    help='GPU ID (negative value indicates CPU)')
-parser.add_argument('--iter', default=5000, type=int,
-                    help='number of iteration')
-parser.add_argument('--lr', default=4.0, type=float,
-                    help='learning rate')
-parser.add_argument('--lam', default=0.005, type=float,
-                    help='original image weight / style weight ratio')
-parser.add_argument('--width', '-w', default=435, type=int,
-                    help='image width, height')
-args = parser.parse_args()
+    chainer.Function.type_check_enable = False
+    print "load model... %s"%args.model
+    func = caffe.CaffeFunction(args.model)
+    model = func.fs
+    if args.gpu>=0:
+    	model.to_gpu()
 
-try:
-    os.mkdir(args.out_dir)
-except:
-    pass
-
-if args.gpu >= 0:
-	cuda.check_cuda_available()
-	cuda.get_device(args.gpu).use()
-   	xp = cuda.cupy
-else:
-   	xp = np
+    
+    img_gogh,_,_ = image_resize(args.style_img, W)
+    img_hongo,nw,nh = image_resize(args.orig_img, W)
 
 
-chainer.Function.type_check_enable = False
-print "load model... %s"%args.model
-func = caffe.CaffeFunction(args.model)
-model = func.fs
-if args.gpu>=0:
-	model.to_gpu()
-
-W = args.width
-img_gogh,_,_ = image_resize(args.style_img, W)
-img_hongo,nw,nh = image_resize(args.orig_img, W)
-
-generate_image(img_hongo, img_gogh, W, nw, nh, img_gen=None, max_iter=args.iter, lr=args.lr, alpha=[args.lam * x for x in [0,0,1,1]], beta=[1,1,1,1])
+    generate_image(img_hongo, img_gogh, W, nw, nh, img_gen=None, max_iter=args.iter, lr=args.lr, alpha=[args.lam * x for x in [0,0,1,1]], beta=[1,1,1,1], forward=forward)
