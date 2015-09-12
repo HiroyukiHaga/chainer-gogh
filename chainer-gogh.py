@@ -202,11 +202,9 @@ if __name__ == '__main__':
        	xp = np
 
     if 'VGG' in args.model:
-        print 'vgg_forward will be used for ', args.model
+        print 'vgg_forward will be used for', args.model
         forward = vgg_forward
-        W = 256
     else: 
-        W = args.width
         forward = nin_forward
 
 
@@ -218,6 +216,7 @@ if __name__ == '__main__':
     	model.to_gpu()
 
     
+    W = args.width
     img_gogh,_,_ = image_resize(args.style_img, W)
     img_hongo,nw,nh = image_resize(args.orig_img, W)
 
