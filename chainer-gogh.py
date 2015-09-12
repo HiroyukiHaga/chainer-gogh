@@ -202,7 +202,7 @@ if __name__ == '__main__':
        	xp = np
 
     if 'VGG' in args.model:
-        print 'vgg_forward will be used for ' args.model
+        print 'vgg_forward will be used for ', args.model
         forward = vgg_forward
         W = 256
     else: 
